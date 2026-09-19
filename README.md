@@ -16,7 +16,9 @@ Slack-bot som crawler en Notion-database og svarer i Slack. Java 21, Maven, Slac
 3. Kopier **Internal Integration Secret** → `NOTION_TOKEN`.
 4. Åpne databasen i Notion → `•••` → **Connections** → legg til integrasjonen. Uten dette får du `404 object_not_found`.
 5. Database-ID-en er 32-tegnsstrengen i URL-en:
-   `https://www.notion.so/<workspace>/<DATABASE_ID>?v=...` → `NOTION_DATABASE_ID`.
+   `https://www.notion.so/<workspace>/<DATABASE_ID>?v=...` → `NOTION_DATABASE_ID` (Vinstraffer).
+6. Gjør det samme for medlemsdatabasen (Redaksjonsmedlemmer) → `NOTION_MEMBERS_DATABASE_ID`.
+   Den må ha en tall-rollup som heter `Ikke innløste vinstraffer`.
 
 ## 2. Slack-app
 
@@ -26,7 +28,7 @@ Slack-bot som crawler en Notion-database og svarer i Slack. Java 21, Maven, Slac
    - `commands`
    - `app_mentions:read`
    - `chat:write`
-4. **Slash Commands** → opprett `/notion` (Request URL trengs ikke i Socket Mode).
+4. **Slash Commands** → opprett `/notion` og `/straffer` (Request URL trengs ikke i Socket Mode).
 5. **Event Subscriptions** → slå på og abonner på bot-eventen `app_mention`.
 6. **Install App** → installer i workspace. Kopier **Bot User OAuth Token** → `SLACK_BOT_TOKEN` (`xoxb-...`).
 7. Inviter boten til kanalen der den skal brukes: `/invite @botnavn`.
@@ -43,7 +45,8 @@ Ekte miljøvariabler overstyrer `.env`. Mangler en påkrevd variabel, avslutter 
 | Variabel                   | Påkrevd | Beskrivelse                             |
 |----------------------------|---------|-----------------------------------------|
 | `NOTION_TOKEN`             | ja      | Notion integration secret               |
-| `NOTION_DATABASE_ID`       | ja      | ID til databasen som skal crawles       |
+| `NOTION_DATABASE_ID`       | ja      | ID til Vinstraffer-databasen            |
+| `NOTION_MEMBERS_DATABASE_ID` | ja    | ID til medlemsdatabasen                 |
 | `SLACK_BOT_TOKEN`          | ja      | `xoxb-...`                              |
 | `SLACK_APP_TOKEN`          | ja      | `xapp-...` (Socket Mode)                |
 | `NOTION_CACHE_TTL_MINUTES` | nei     | Cache-levetid for Notion-data, default 5 |
@@ -64,6 +67,7 @@ mvn compile exec:java -Dexec.mainClass=com.sander.notionbot.App
 
 ## Bruk
 
+- `/straffer` – viser ikke-innløste vinstraffer per person og anbefalt antall å ta med (halvparten, maks 6). Synlig for hele kanalen.
 - `/notion` – viser de 5 nyeste radene (kun synlig for deg).
 - `@bot <spørsmål>` – enkel nøkkelordsøk i databasen, svarer i tråd. Erstattes av RAG senere.
 

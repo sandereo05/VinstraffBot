@@ -9,12 +9,14 @@ import java.util.function.Function;
 public record Config(
         String notionToken,
         String notionDatabaseId,
+        String notionMembersDatabaseId,
         String slackBotToken,
         String slackAppToken,
         Duration cacheTtl) {
 
     static final List<String> REQUIRED_VARIABLES =
-            List.of("NOTION_TOKEN", "NOTION_DATABASE_ID", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN");
+            List.of("NOTION_TOKEN", "NOTION_DATABASE_ID", "NOTION_MEMBERS_DATABASE_ID",
+                    "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN");
     static final Duration DEFAULT_CACHE_TTL = Duration.ofMinutes(5);
 
     /** Real environment variables take precedence over values in {@code .env}. */
@@ -35,6 +37,7 @@ public record Config(
         return new Config(
                 lookup.apply("NOTION_TOKEN").trim(),
                 lookup.apply("NOTION_DATABASE_ID").trim(),
+                lookup.apply("NOTION_MEMBERS_DATABASE_ID").trim(),
                 lookup.apply("SLACK_BOT_TOKEN").trim(),
                 lookup.apply("SLACK_APP_TOKEN").trim(),
                 parseCacheTtl(lookup.apply("NOTION_CACHE_TTL_MINUTES")));
@@ -62,6 +65,7 @@ public record Config(
 
     @Override
     public String toString() {
-        return "Config[notionDatabaseId=%s, cacheTtl=%s]".formatted(notionDatabaseId, cacheTtl);
+        return "Config[notionDatabaseId=%s, notionMembersDatabaseId=%s, cacheTtl=%s]"
+                .formatted(notionDatabaseId, notionMembersDatabaseId, cacheTtl);
     }
 }

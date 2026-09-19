@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.sander.notionbot.cache.NotionCache;
 import com.sander.notionbot.notion.model.NotionPage;
 import com.sander.notionbot.notion.model.NotionProperty;
+import com.sander.notionbot.notion.model.PenaltyBalance;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -17,18 +18,22 @@ import java.util.stream.StreamSupport;
 
 public class NotionService {
 
+    static final String UNREDEEMED_PROPERTY = "Ikke innløste vinstraffer";
+
     private final NotionClient client;
     private final NotionCache cache;
     private final String databaseId;
+    private final String membersDatabaseId;
 
-    public NotionService(NotionClient client, NotionCache cache, String databaseId) {
+    public NotionService(NotionClient client, NotionCache cache, String databaseId, String membersDatabaseId) {
         this.client = client;
         this.cache = cache;
         this.databaseId = databaseId;
+        this.membersDatabaseId = membersDatabaseId;
     }
 
     public List<NotionPage> allPages() {
-        return cache.getOrLoad(databaseId, this::loadPages);
+        return cache.getOrLoad(databaseId, () -> loadPages(databaseId));
     }
 
     public List<NotionPage> latestPages(int limit) {
@@ -38,7 +43,29 @@ public class NotionService {
                 .toList();
     }
 
-    private List<NotionPage> loadPages() {
+    /** Members with at least one unredeemed penalty, most first. */
+    public List<PenaltyBalance> penaltyBalances() {
+        return cache.getOrLoad(membersDatabaseId, () -> loadPages(membersDatabaseId)).stream()
+                .map(NotionService::toBalance)
+                .filter(balance -> balance.unredeemed() > 0)
+                .sorted(Comparator.comparingInt(PenaltyBalance::unredeemed).reversed()
+                        .thenComparing(PenaltyBalance::name))
+                .toList();
+    }
+
+    // Fails loudly rather than defaulting to 0: a renamed Notion property would otherwise
+    // make everyone look debt-free.
+    static PenaltyBalance toBalance(NotionPage member) {
+        NotionProperty property = member.properties().get(UNREDEEMED_PROPERTY);
+        if (!(property instanceof NotionProperty.Numeric numeric)) {
+            throw new IllegalStateException("Expected numeric property '%s' on member '%s', got %s"
+                    .formatted(UNREDEEMED_PROPERTY, member.title(), property));
+        }
+        int unredeemed = numeric.value() == null ? 0 : numeric.value().intValue();
+        return new PenaltyBalance(member.title(), unredeemed);
+    }
+
+    private List<NotionPage> loadPages(String databaseId) {
         try {
             // TODO(RAG): after crawling, chunk and embed page content here (or in a listener)
             //  so the vector index is refreshed together with the cache.
@@ -79,7 +106,22 @@ public class NotionService {
             case "date" -> new NotionProperty.DateRange(value.path("start").textValue(), value.path("end").textValue());
             case "url" -> new NotionProperty.Url(value.textValue());
             case "people" -> new NotionProperty.People(names(value));
+            case "created_time", "last_edited_time" -> new NotionProperty.DateRange(value.textValue(), null);
+            case "formula", "rollup" -> toComputedProperty(type, value);
             default -> new NotionProperty.Unsupported(type);
+        };
+    }
+
+    /** Formula and rollup wrap their result as {@code {"type": "number", "number": 4}}. */
+    private static NotionProperty toComputedProperty(String type, JsonNode value) {
+        String resultType = value.path("type").asText();
+        JsonNode result = value.path(resultType);
+        return switch (resultType) {
+            case "number" -> new NotionProperty.Numeric(result.isNumber() ? result.decimalValue() : null);
+            case "boolean" -> new NotionProperty.Checkbox(result.asBoolean(false));
+            case "string" -> new NotionProperty.RichText(result.textValue());
+            case "date" -> new NotionProperty.DateRange(result.path("start").textValue(), result.path("end").textValue());
+            default -> new NotionProperty.Unsupported(type + ":" + resultType);
         };
     }
 
