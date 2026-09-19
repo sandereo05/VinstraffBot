@@ -34,7 +34,7 @@ public final class App {
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         NotionClient notionClient = new NotionClient(config.notionToken(), new ObjectMapper());
         NotionService notionService = new NotionService(
-                notionClient, new NotionCache(config.cacheTtl()), config.notionDatabaseId());
+                notionClient, new NotionCache(config.cacheTtl()), config.notionDatabaseId(), config.notionMembersDatabaseId());
 
         SocketModeApp socketModeApp = new SocketModeApp(
                 config.slackAppToken(),
